@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>總資產計算器</title>
+<meta name="theme-color" content="#F2F4F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F151D" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="總資產">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+  /* 版面概念：上方淨資產總覽與增減，中間依類別分組的可編輯清單，接著登記按鈕，最後是歷史走勢圖與紀錄。 */
+  :root {
+    --bg: #F2F4F7;
+    --surface: #FFFFFF;
+    --field: #F6F8FA;
+    --fg: #131C27;
+    --muted: #5B6877;
+    --line: #DDE2E9;
+    --accent: #2447C8;
+    --accent-fg: #FFFFFF;
+    --accent-soft: #E6ECFB;
+    --pos: #0B7A68;
+    --neg: #B23A2B;
+    --c1: #2F6FDE;
+    --c2: #0E9F8E;
+    --c3: #D99A1E;
+    --c4: #7A5AD6;
+    --c5: #6B7A90;
+    --font-body: "Noto Sans TC", system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    --font-num: "Space Grotesk", "Noto Sans TC", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F151D;
+      --surface: #17202B;
+      --field: #111922;
+      --fg: #E8EDF3;
+      --muted: #98A5B5;
+      --line: #2A3645;
+      --accent: #8AA4FF;
+      --accent-fg: #0F151D;
+      --accent-soft: #1E2A4A;
+      --pos: #4CC9B0;
+      --neg: #FF8A78;
+      --c1: #6A9BFF;
+      --c2: #3CCDB9;
+      --c3: #F0B94A;
+      --c4: #A58BF2;
+      --c5: #93A3B8;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F151D;
+    --surface: #17202B;
+    --field: #111922;
+    --fg: #E8EDF3;
+    --muted: #98A5B5;
+    --line: #2A3645;
+    --accent: #8AA4FF;
+    --accent-fg: #0F151D;
+    --accent-soft: #1E2A4A;
+    --pos: #4CC9B0;
+    --neg: #FF8A78;
+    --c1: #6A9BFF;
+    --c2: #3CCDB9;
+    --c3: #F0B94A;
+    --c4: #A58BF2;
+    --c5: #93A3B8;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    padding-block: 24px 40px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: 0.02em; text-wrap: balance; }
+  .base-pick { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+
+  input, select, button { font: inherit; color: inherit; }
+  input, select {
+    background: var(--field);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    min-width: 0;
+    width: 100%;
+  }
+  select { width: auto; cursor: pointer; }
+  input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  .good { color: var(--pos); }
+  .bad { color: var(--neg); }
+  .flat { color: var(--muted); }
+
+  /* 總覽 */
+  .hero { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .hero-label { color: var(--muted); font-size: 13px; letter-spacing: 0.04em; }
+  .net { font-family: var(--font-num); font-weight: 700; font-size: clamp(34px, 9vw, 52px); line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .net small { font-size: 0.4em; font-weight: 500; color: var(--muted); margin-left: 6px; letter-spacing: 0.04em; }
+  .net.neg { color: var(--neg); }
+  .net-d { margin-top: 4px; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .net-d:empty { display: none; }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .stat span:first-child { color: var(--muted); font-size: 12px; }
+  .stat b { font-family: var(--font-num); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .stat .pos { color: var(--pos); }
+  .stat .neg { color: var(--neg); }
+  .stat .d { font-size: 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .stat .d:empty { display: none; }
+
+  .bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--line); }
+  .bar span { display: block; height: 100%; }
+  .bar span + span { box-shadow: -2px 0 0 var(--surface); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+  .legend li { display: flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .legend b { color: var(--fg); font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .empty-hint { color: var(--muted); font-size: 13px; margin: 0; }
+
+  .sample { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; background: var(--accent-soft); border-radius: 10px; font-size: 13px; }
+  .sample p { margin: 0; flex: 1 1 220px; }
+
+  /* 分組清單 */
+  .group { padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 10px; }
+  .group-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .group-head h2 { margin: 0; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+  .sub { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 500; color: var(--muted); font-size: 14px; white-space: nowrap; }
+  .rows { display: flex; flex-direction: column; gap: 10px; }
+  .item { display: flex; flex-direction: column; gap: 3px; }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 140px 84px 130px 32px;
+    gap: 8px;
+    align-items: center;
+  }
+  .row .amt { text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .row .cur { width: 100%; }
+  .row output { text-align: right; color: var(--muted); font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 13px; overflow-wrap: anywhere; }
+  .dl { font-size: 12.5px; color: var(--muted); padding-left: 2px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .dl:empty { display: none; }
+  .del { width: 32px; height: 32px; border: 0; background: transparent; color: var(--muted); border-radius: 8px; cursor: pointer; font-size: 18px; line-height: 1; }
+  .del:hover { color: var(--neg); background: var(--field); }
+  .add { align-self: flex-start; border: 0; background: transparent; color: var(--accent); cursor: pointer; padding: 6px 2px; font-size: 14px; font-weight: 500; }
+  .add:hover { text-decoration: underline; }
+  .none { margin: 0; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 580px) {
+    .row {
+      grid-template-columns: minmax(0, 1fr) 84px minmax(72px, auto);
+      grid-template-areas: "name name del" "amt cur cv";
+    }
+    .row .name { grid-area: name; }
+    .row .amt { grid-area: amt; }
+    .row .cur { grid-area: cur; }
+    .row output { grid-area: cv; }
+    .row .del { grid-area: del; justify-self: end; }
+    .stats { gap: 8px; }
+    .stat b { font-size: 15px; }
+  }
+
+  /* 登記 */
+  .reg { padding: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+  .reg-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
+  .reg-text b { font-size: 15px; }
+  .reg-text .muted { color: var(--muted); }
+  .primary { border: 0; background: var(--accent); color: var(--accent-fg); border-radius: 10px; padding: 11px 20px; font-weight: 700; cursor: pointer; }
+  .primary:hover { filter: brightness(1.08); }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .reg-status { flex: 1 1 100%; margin: 0; font-size: 13px; color: var(--muted); }
+  .reg-status:empty { display: none; }
+
+  /* 走勢圖 */
+  .chart-card { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .chart-card h2 { margin: 0; font-size: 15px; font-weight: 700; }
+  .readout { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 3.2em; }
+  .readout b { color: var(--fg); font-family: var(--font-num); font-weight: 700; }
+  .chart { min-width: 0; }
+  .chart svg { display: block; width: 100%; touch-action: pan-y; }
+  .tk { font: 11px var(--font-num); fill: var(--muted); }
+  .ser-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); }
+  .ser-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .ser-legend i { width: 18px; height: 0; border-top: 3px solid; display: inline-block; }
+  .ser-legend i.dash { border-top-style: dashed; }
+
+  details { padding: 4px 16px; }
+  summary { cursor: pointer; padding: 12px 0; font-weight: 500; }
+  .hlist { display: flex; flex-direction: column; padding-bottom: 8px; }
+  .hrow {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.2fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0;
+    border-top: 1px solid var(--line);
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .hrow .hv { font-family: var(--font-num); font-weight: 500; }
+  .hrow .hc { overflow-wrap: anywhere; }
+  .hdel { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12.5px; }
+  .hdel:hover { color: var(--neg); border-color: var(--neg); }
+  .hdel.armed { color: var(--neg); border-color: var(--neg); }
+  @media (max-width: 580px) {
+    .hrow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "hd hdel" "hv hc"; }
+    .hrow .hd { grid-area: hd; }
+    .hrow .hv { grid-area: hv; }
+    .hrow .hc { grid-area: hc; text-align: right; }
+    .hrow .hdel { grid-area: hdel; }
+  }
+
+  .rates { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; padding-bottom: 14px; }
+  .rate { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .rate input { text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+  .rate span { white-space: nowrap; }
+  .note { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; }
+  .foot p { margin: 0; flex: 1 1 260px; }
+  .ghost { border: 1px solid var(--line); background: transparent; border-radius: 8px; padding: 7px 12px; cursor: pointer; color: var(--muted); font-size: 13px; }
+  .ghost:hover { color: var(--fg); border-color: var(--muted); }
+  .ghost.armed { color: var(--neg); border-color: var(--neg); }
+  .sample .ghost { color: var(--fg); background: var(--surface); }
+
+  .boot { max-width: 760px; margin: 40px auto; text-align: center; color: var(--muted); }
+  .sync { margin: -6px 0 0; font-size: 12.5px; color: var(--muted); }
+  .sync.ok::before { content: "● "; color: var(--pos); }
+  .sync.warn::before { content: "● "; color: var(--neg); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .bar span { transition: width 0.25s ease; }
+  }
+</style>
+</head>
+<body>
+
+<p class="boot" id="boot" role="status">讀取你的資料中…</p>
+<div class="wrap" id="main" hidden>
+  <div class="top">
+    <h1>總資產計算器</h1>
+    <label class="base-pick">計價幣別
+      <select id="base" aria-label="計價幣別"></select>
+    </label>
+  </div>
+  <p class="sync" id="sync" role="status"></p>
+
+  <section class="card hero" aria-live="polite">
+    <div>
+      <div class="hero-label">淨資產（總資產 − 總負債）</div>
+      <div class="net" id="net">0<small id="net-cur"></small></div>
+      <div class="net-d" id="dd-net"></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><span>總資產</span><b class="pos" id="assets">0</b><span class="d" id="dd-assets"></span></div>
+      <div class="stat"><span>總負債</span><b class="neg" id="debts">0</b><span class="d" id="dd-debts"></span></div>
+      <div class="stat"><span>負債比</span><b id="ratio">—</b></div>
+    </div>
+    <div id="dist"></div>
+  </section>
+
+  <div class="sample" id="sample" hidden>
+    <p>目前顯示的是範例資料和範例登記紀錄，金額與匯率都是假設值。清空範例後，才能開始登記你自己的數字。</p>
+    <button class="ghost" id="clear-sample" type="button">清空範例</button>
+  </div>
+
+  <div id="app" class="wrap" style="gap:16px"></div>
+
+  <section class="card reg">
+    <div class="reg-text">
+      <b>登記本次</b>
+      <span id="reg-info" class="muted"></span>
+      <span id="reg-removed" class="muted"></span>
+    </div>
+    <button class="primary" id="register" type="button">登記本次金額</button>
+    <p class="reg-status" id="reg-status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section class="card chart-card">
+    <h2>資產變化</h2>
+    <div class="readout" id="readout" aria-live="polite"></div>
+    <div class="chart" id="chart"></div>
+    <div class="ser-legend" id="ser-legend"></div>
+  </section>
+
+  <details class="card">
+    <summary>登記紀錄（<span id="hist-count">0</span> 筆）</summary>
+    <div class="hlist" id="hist-list"></div>
+  </details>
+
+  <details class="card">
+    <summary>匯率設定</summary>
+    <p class="note">以 1 美元兌換各幣別為基準。預設只是概略參考值，請依實際匯率修改。每筆登記會記住當時的匯率，之後改匯率不會動到舊紀錄。</p>
+    <div class="rates" id="rates"></div>
+  </details>
+
+  <section class="card reg">
+    <div class="reg-text">
+      <b>備份</b>
+      <span class="muted">資料存在這支手機的瀏覽器裡。換手機或清除 Safari 資料前，先匯出備份；在新裝置上用「匯入備份」還原。</span>
+    </div>
+    <div class="btns">
+      <button class="ghost" id="export" type="button">匯出備份</button>
+      <button class="ghost" id="import" type="button">匯入備份</button>
+    </div>
+    <p class="reg-status" id="backup-status" role="status" aria-live="polite"></p>
+    <input type="file" id="import-file" accept="application/json,.json" hidden>
+  </section>
+
+  <div class="foot">
+    <p>清空全部會連同所有登記紀錄一起刪除，無法復原。</p>
+    <button class="ghost" id="clear-all" type="button">清空全部（含紀錄）</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  var GROUPS = [
+    { key: 'cash',     name: '現金與存款', color: '--c1' },
+    { key: 'invest',   name: '股票與基金', color: '--c2' },
+    { key: 'crypto',   name: '加密貨幣',   color: '--c3' },
+    { key: 'property', name: '不動產',     color: '--c4' },
+    { key: 'other',    name: '其他資產',   color: '--c5' },
+    { key: 'debt',     name: '負債',       color: '--neg', debt: true }
+  ];
+  var CURS = ['TWD', 'USD', 'PYG', 'CLP', 'EUR', 'JPY', 'CNY'];
+  var DEF_RATES = { USD: 1, TWD: 31.5, PYG: 7400, CLP: 940, EUR: 0.86, JPY: 155, CNY: 7.1 };
+  var KEY = 'asset-calculator-v1';
+
+  function uid() { return Math.random().toString(36).slice(2, 9); }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function $(id) { return document.getElementById(id); }
+  function fmt(n) { return isFinite(n) ? Math.round(n).toLocaleString('zh-TW') : '0'; }
+  function fmt2(n) { return isFinite(n) ? n.toLocaleString('zh-TW', { maximumFractionDigits: 2 }) : '0'; }
+  function parseNum(s) {
+    var n = parseFloat(String(s).replace(/[,\s，]/g, ''));
+    return isFinite(n) && n > 0 ? n : 0;
+  }
+  function groupOf(key) { return GROUPS.filter(function (g) { return g.key === key; })[0]; }
+  function fmtWhen(ts) {
+    return new Date(ts).toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  function fmtShort(ts) { var d = new Date(ts); return (d.getMonth() + 1) + '/' + d.getDate(); }
+  function compact(n) {
+    try { return new Intl.NumberFormat('zh-TW', { notation: 'compact', maximumFractionDigits: 1 }).format(n); }
+    catch (e) { return fmt(n); }
+  }
+
+  function convert(amount, cur, rates, base) {
+    var r = rates[cur], b = rates[base];
+    if (!(r > 0) || !(b > 0)) return 0;
+    return amount / r * b;
+  }
+  function totalsOf(items, rates, base) {
+    var a = 0, d = 0;
+    items.forEach(function (it) {
+      var v = convert(it.amount || 0, it.cur, rates, base);
+      if (groupOf(it.group) && groupOf(it.group).debt) d += v; else a += v;
+    });
+    return { assets: a, debts: d };
+  }
+
+  function sampleState() {
+    var items = [
+      { id: uid(), group: 'cash',   name: '台灣活存帳戶',   amount: 480000, cur: 'TWD' },
+      { id: uid(), group: 'cash',   name: '美元外幣帳戶',   amount: 3200,   cur: 'USD' },
+      { id: uid(), group: 'invest', name: '台股 ETF',       amount: 650000, cur: 'TWD' },
+      { id: uid(), group: 'crypto', name: '加密貨幣錢包',   amount: 1800,   cur: 'USD' },
+      { id: uid(), group: 'debt',   name: '信用卡待繳',     amount: 12000,  cur: 'TWD' }
+    ];
+    var rates = Object.assign({}, DEF_RATES);
+    return { base: 'TWD', sample: true, rates: rates, items: items, history: sampleHistory(items, rates, 'TWD') };
+  }
+  function sampleHistory(items, rates, base) {
+    var F = {
+      cash: [0.90, 0.94, 0.99, 1.05], invest: [0.82, 0.90, 0.96, 0.93], crypto: [0.6, 1.3, 0.95, 1.2],
+      debt: [1.6, 1.3, 1.0, 1.25], property: [1, 1, 1, 1], other: [1, 1, 1, 1]
+    };
+    return [120, 90, 60, 30].map(function (d, k) {
+      return {
+        id: uid(),
+        ts: new Date(Date.now() - d * 86400000).toISOString(),
+        base: base,
+        rates: Object.assign({}, rates),
+        items: items.map(function (it) {
+          return { id: it.id, group: it.group, name: it.name, amount: Math.round(it.amount * F[it.group][k]), cur: it.cur };
+        })
+      };
+    });
+  }
+
+  function clone(x) { return JSON.parse(JSON.stringify(x)); }
+
+  /* 把存下來的資料整理成頁面用的狀態；格式不對就回傳 null */
+  function normalize(p, hist) {
+    if (!p || !Array.isArray(p.items)) return null;
+    var h = hist || p.history;
+    var s = {
+      base: CURS.indexOf(p.base) >= 0 ? p.base : 'TWD',
+      sample: !!p.sample,
+      rates: Object.assign({}, DEF_RATES, p.rates || {}),
+      items: p.items.filter(function (it) { return it && groupOf(it.group) && CURS.indexOf(it.cur) >= 0; }),
+      history: Array.isArray(h) ? h.filter(function (x) {
+        return x && x.ts && Array.isArray(x.items) && x.rates && typeof x.rates === 'object';
+      }).sort(function (a, b) { return a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0; }) : []
+    };
+    if (s.sample && !s.history.length && s.items.length) {
+      s.history = sampleHistory(s.items, s.rates, s.base);
+    }
+    return s;
+  }
+
+  /* 先讀這個瀏覽器裡的備份；連上帳戶後會改用帳戶裡的資料 */
+  var S = null;
+  try {
+    var raw = localStorage.getItem(KEY);
+    if (raw) S = normalize(JSON.parse(raw));
+  } catch (e) {}
+  var localS = S;
+
+  function setSync(ok) {
+    var el = $('sync');
+    if (!el) return;
+    el.className = 'sync ' + (ok ? 'ok' : 'warn');
+    el.textContent = ok
+      ? '資料存在這支裝置的瀏覽器裡，不會上傳。換裝置前請先在最下方匯出備份。'
+      : '這個瀏覽器目前無法儲存資料（可能是無痕模式），關掉頁面後內容會消失。';
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(S));
+      setSync(true);
+    } catch (e) {
+      setSync(false);
+    }
+  }
+  function toBase(amount, cur) { return convert(amount, cur, S.rates, S.base); }
+  function lastSnap() { return S.history.length ? S.history[S.history.length - 1] : null; }
+
+  /* 增減文字：goodUp 為 true 表示數字上升是好事（資產），負債則相反 */
+  function dtext(d, unit, goodUp, pct) {
+    if (Math.abs(d) < 0.005) return '<span class="flat">與上次相同</span>';
+    var up = d > 0, good = goodUp ? up : !up;
+    var s = (up ? '▲ +' : '▼ −') + fmt2(Math.abs(d)) + (unit ? ' ' + unit : '');
+    if (pct != null && isFinite(pct)) s += '（' + (up ? '+' : '−') + Math.abs(pct).toFixed(1) + '%）';
+    return '<span class="' + (good ? 'good' : 'bad') + '">' + s + '</span>';
+  }
+
+  function itemDeltaHtml(it, last) {
+    if (!last) return '';
+    var prev = last.items.filter(function (x) { return x.id === it.id; })[0];
+    var isDebt = !!groupOf(it.group).debt;
+    if (!prev) return '<span class="flat">上次登記時沒有這個項目（新增）</span>';
+    var pv, nv, unit;
+    if (prev.cur === it.cur) { pv = prev.amount || 0; nv = it.amount || 0; unit = it.cur; }
+    else { pv = convert(prev.amount || 0, prev.cur, last.rates, S.base); nv = toBase(it.amount || 0, it.cur); unit = S.base; }
+    var d = nv - pv;
+    var pct = pv > 0 ? d / pv * 100 : null;
+    if (Math.abs(d) < 0.005) return '<span class="flat">與上次相同（' + fmt2(pv) + ' ' + unit + '）</span>';
+    return '上次 ' + fmt2(pv) + ' ' + unit + ' → ' + dtext(d, unit, !isDebt, pct);
+  }
+
+  function rowHtml(it) {
+    var opts = CURS.map(function (c) {
+      return '<option value="' + c + '"' + (c === it.cur ? ' selected' : '') + '>' + c + '</option>';
+    }).join('');
+    return '<div class="item">' +
+      '<div class="row" data-id="' + it.id + '">' +
+        '<input class="name" id="n-' + it.id + '" data-f="name" aria-label="項目名稱" placeholder="項目名稱" value="' + esc(it.name) + '">' +
+        '<input class="amt" id="a-' + it.id + '" data-f="amt" inputmode="decimal" aria-label="金額" placeholder="0" value="' + (it.amount ? it.amount.toLocaleString('en-US', { maximumFractionDigits: 8 }) : '') + '">' +
+        '<select class="cur" id="c-' + it.id + '" data-f="cur" aria-label="幣別">' + opts + '</select>' +
+        '<output class="cv" id="v-' + it.id + '"></output>' +
+        '<button class="del" type="button" data-del="' + it.id + '" aria-label="刪除 ' + esc(it.name || '此項目') + '">×</button>' +
+      '</div>' +
+      '<div class="dl" id="d-' + it.id + '"></div>' +
+    '</div>';
+  }
+
+  function render() {
+    $('app').innerHTML = GROUPS.map(function (g) {
+      var items = S.items.filter(function (it) { return it.group === g.key; });
+      return '<section class="card group">' +
+        '<div class="group-head">' +
+          '<h2><i class="dot" style="background:var(' + g.color + ')"></i>' + g.name + '</h2>' +
+          '<span class="sub" id="sub-' + g.key + '"></span>' +
+        '</div>' +
+        '<div class="rows">' +
+          (items.length ? items.map(rowHtml).join('') : '<p class="none">還沒有項目。</p>') +
+        '</div>' +
+        '<button class="add" type="button" data-add="' + g.key + '">＋ 新增' + g.name + '項目</button>' +
+      '</section>';
+    }).join('');
+    $('sample').hidden = !S.sample;
+    recalc();
+    renderRegInfo();
+  }
+
+  function recalc() {
+    var sub = {}, assets = 0, debts = 0;
+    var last = lastSnap();
+    GROUPS.forEach(function (g) { sub[g.key] = 0; });
+    S.items.forEach(function (it) {
+      var v = toBase(it.amount || 0, it.cur);
+      sub[it.group] += v;
+      if (groupOf(it.group).debt) debts += v; else assets += v;
+      var out = $('v-' + it.id);
+      if (out) out.textContent = '≈ ' + fmt(v) + ' ' + S.base;
+      var dl = $('d-' + it.id);
+      if (dl) dl.innerHTML = itemDeltaHtml(it, last);
+    });
+    GROUPS.forEach(function (g) {
+      var el = $('sub-' + g.key);
+      if (el) el.textContent = fmt(sub[g.key]) + ' ' + S.base;
+    });
+
+    var net = assets - debts;
+    var netEl = $('net');
+    netEl.className = 'net' + (net < 0 ? ' neg' : '');
+    netEl.innerHTML = fmt(net) + '<small>' + S.base + '</small>';
+    $('assets').textContent = fmt(assets);
+    $('debts').textContent = fmt(debts);
+    $('ratio').textContent = assets > 0 ? (debts / assets * 100).toFixed(1) + '%' : '—';
+
+    if (last) {
+      var lt = totalsOf(last.items, last.rates, S.base);
+      var lnet = lt.assets - lt.debts;
+      $('dd-net').innerHTML = '較上次登記（' + fmtShort(last.ts) + '）　' + dtext(net - lnet, S.base, true, lnet > 0 ? (net - lnet) / lnet * 100 : null);
+      $('dd-assets').innerHTML = dtext(assets - lt.assets, '', true, lt.assets > 0 ? (assets - lt.assets) / lt.assets * 100 : null);
+      $('dd-debts').innerHTML = dtext(debts - lt.debts, '', false, lt.debts > 0 ? (debts - lt.debts) / lt.debts * 100 : null);
+    } else {
+      $('dd-net').innerHTML = '';
+      $('dd-assets').innerHTML = '';
+      $('dd-debts').innerHTML = '';
+    }
+
+    var segs = GROUPS.filter(function (g) { return !g.debt && sub[g.key] > 0; });
+    if (assets > 0 && segs.length) {
+      $('dist').innerHTML =
+        '<div class="bar" role="img" aria-label="資產分布">' +
+          segs.map(function (g) {
+            return '<span style="width:' + (sub[g.key] / assets * 100) + '%;background:var(' + g.color + ')"></span>';
+          }).join('') +
+        '</div>' +
+        '<ul class="legend" style="margin-top:10px">' +
+          segs.map(function (g) {
+            return '<li><i style="background:var(' + g.color + ')"></i>' + g.name + ' <b>' + (sub[g.key] / assets * 100).toFixed(1) + '%</b></li>';
+          }).join('') +
+        '</ul>';
+    } else {
+      $('dist').innerHTML = '<p class="empty-hint">輸入資產金額後，這裡會顯示各類別的占比。</p>';
+    }
+  }
+
+  function renderRegInfo() {
+    var last = lastSnap();
+    if (last) {
+      $('reg-info').textContent = '上次登記：' + fmtWhen(last.ts) + '。上方各項目下方會顯示與它相比的增減。';
+      var removed = last.items.filter(function (x) {
+        return !S.items.some(function (y) { return y.id === x.id; });
+      });
+      $('reg-removed').textContent = removed.length
+        ? '自上次登記後已刪除：' + removed.map(function (x) { return x.name || '未命名項目'; }).join('、')
+        : '';
+    } else {
+      $('reg-info').textContent = '還沒有登記紀錄。調整好金額後按下登記，就會存成第一筆。';
+      $('reg-removed').textContent = '';
+    }
+  }
+
+  /* 走勢圖 */
+  var activeIdx = null;
+  var geom = null;
+
+  function series() {
+    return S.history.map(function (h) {
+      var t = totalsOf(h.items, h.rates, S.base);
+      return { id: h.id, ts: h.ts, assets: t.assets, debts: t.debts, net: t.assets - t.debts };
+    });
+  }
+  function niceTicks(lo, hi, n) {
+    var span = hi - lo;
+    var raw = span / n;
+    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+    var norm = raw / mag;
+    var step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+    var start = Math.floor(lo / step), end = Math.ceil(hi / step);
+    var t = [];
+    for (var i = start; i <= end; i++) t.push(i * step);
+    return t;
+  }
+
+  function drawChart() {
+    if (!S || $('main').hidden) return;
+    var host = $('chart');
+    var pts = series();
+    var readout = $('readout');
+    if (!pts.length) {
+      host.innerHTML = '<p class="empty-hint">還沒有登記紀錄。每次按下「登記本次金額」，這裡就會多一個點，連成總資產的變化。</p>';
+      readout.innerHTML = '';
+      $('ser-legend').innerHTML = '';
+      geom = null;
+      return;
+    }
+    var n = pts.length;
+    var idx = activeIdx == null || activeIdx >= n ? n - 1 : activeIdx;
+    var hasDebt = pts.some(function (p) { return p.debts > 0.005; });
+    var W = Math.max(host.clientWidth, 260), H = 240;
+    var m = { l: 58, r: 18, t: 14, b: 30 };
+    var innerW = W - m.l - m.r, innerH = H - m.t - m.b;
+
+    var vals = [];
+    pts.forEach(function (p) { vals.push(p.assets); if (hasDebt) vals.push(p.net); });
+    var vmin = Math.min.apply(null, vals), vmax = Math.max.apply(null, vals);
+    var lo = vmin, hi = vmax;
+    if (hi === lo) { var pad0 = Math.abs(hi) * 0.1 || 1; lo -= pad0; hi += pad0; }
+    else { var pad = (hi - lo) * 0.12; lo -= pad; hi += pad; }
+    if (vmin >= 0 && lo < 0) lo = 0;
+    var ticks = niceTicks(lo, hi, 4);
+    lo = ticks[0]; hi = ticks[ticks.length - 1];
+
+    function X(i) { return n === 1 ? m.l + innerW / 2 : m.l + innerW * i / (n - 1); }
+    function Y(v) { return m.t + innerH * (1 - (v - lo) / (hi - lo)); }
+    geom = { m: m, innerW: innerW, n: n };
+
+    var svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' +
+      '總資產從 ' + fmt(pts[0].assets) + ' 變為 ' + fmt(pts[n - 1].assets) + ' ' + S.base + '，共 ' + n + ' 筆登記">';
+    ticks.forEach(function (t) {
+      var y = Y(t);
+      svg += '<line x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y + '" y2="' + y + '" style="stroke:var(--line)" stroke-width="1"/>';
+      svg += '<text class="tk" x="' + (m.l - 8) + '" y="' + (y + 4) + '" text-anchor="end">' + compact(t) + '</text>';
+    });
+
+    var maxLabels = Math.max(2, Math.floor(innerW / 64));
+    var step = Math.ceil(n / maxLabels);
+    for (var li = n - 1; li >= 0; li -= step) {
+      svg += '<text class="tk" x="' + X(li) + '" y="' + (H - 8) + '" text-anchor="middle">' + fmtShort(pts[li].ts) + '</text>';
+    }
+
+    svg += '<line x1="' + X(idx) + '" x2="' + X(idx) + '" y1="' + m.t + '" y2="' + (H - m.b) + '" style="stroke:var(--muted)" stroke-opacity="0.45" stroke-width="1"/>';
+
+    function path(key) {
+      return pts.map(function (p, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p[key]).toFixed(1); }).join(' ');
+    }
+    if (hasDebt) {
+      svg += '<path d="' + path('net') + '" fill="none" style="stroke:var(--pos)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6 4"/>';
+    }
+    svg += '<path d="' + path('assets') + '" fill="none" style="stroke:var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+
+    function dots(key, color) {
+      pts.forEach(function (p, i) {
+        var act = i === idx;
+        svg += '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(p[key]).toFixed(1) + '" r="' + (act ? 5 : 3) + '" style="stroke:var(' + color + ');fill:' + (act ? 'var(' + color + ')' : 'var(--surface)') + '" stroke-width="2"/>';
+      });
+    }
+    if (hasDebt) dots('net', '--pos');
+    dots('assets', '--accent');
+    svg += '</svg>';
+    host.innerHTML = svg;
+
+    var cur = pts[idx], prev = idx > 0 ? pts[idx - 1] : null;
+    var html = fmtWhen(cur.ts) + '　總資產 <b>' + fmt(cur.assets) + ' ' + S.base + '</b>';
+    if (hasDebt) html += '　淨資產 <b>' + fmt(cur.net) + '</b>';
+    html += '<br>' + (prev ? '較前一次登記　' + dtext(cur.assets - prev.assets, S.base, true, prev.assets > 0 ? (cur.assets - prev.assets) / prev.assets * 100 : null) : '這是第一筆登記');
+    readout.innerHTML = html;
+
+    $('ser-legend').innerHTML =
+      '<span><i style="border-color:var(--accent)"></i>總資產</span>' +
+      (hasDebt ? '<span><i class="dash" style="border-color:var(--pos)"></i>淨資產（扣除負債）</span>' : '') +
+      '<span>橫軸為每次登記，依先後排列</span>';
+  }
+
+  var chartHost = $('chart');
+  function scrub(e) {
+    if (!geom) return;
+    var svg = chartHost.querySelector('svg');
+    if (!svg) return;
+    var r = svg.getBoundingClientRect();
+    var x = e.clientX - r.left;
+    var i = geom.n === 1 ? 0 : Math.round((x - geom.m.l) / geom.innerW * (geom.n - 1));
+    i = Math.max(0, Math.min(geom.n - 1, i));
+    if (i !== activeIdx) { activeIdx = i; drawChart(); }
+  }
+  chartHost.addEventListener('pointerdown', scrub);
+  chartHost.addEventListener('pointermove', scrub);
+  chartHost.addEventListener('pointerleave', function (e) {
+    if (e.pointerType === 'mouse' && activeIdx != null) { activeIdx = null; drawChart(); }
+  });
+  window.addEventListener('resize', drawChart);
+  if (window.ResizeObserver) {
+    var lastW = 0;
+    new ResizeObserver(function () {
+      var w = chartHost.clientWidth;
+      if (w !== lastW) { lastW = w; drawChart(); }
+    }).observe(chartHost);
+  }
+
+  /* 登記紀錄 */
+  var armedHist = null, histTimer = null;
+  function renderHistory() {
+    var pts = series();
+    $('hist-count').textContent = pts.length;
+    if (!pts.length) { $('hist-list').innerHTML = '<p class="none">還沒有紀錄。</p>'; return; }
+    var rows = [];
+    for (var i = pts.length - 1; i >= 0; i--) {
+      var p = pts[i], prev = i > 0 ? pts[i - 1] : null;
+      var ch = prev ? dtext(p.assets - prev.assets, S.base, true, prev.assets > 0 ? (p.assets - prev.assets) / prev.assets * 100 : null) : '<span class="flat">第一筆</span>';
+      rows.push('<div class="hrow">' +
+        '<span class="hd">' + fmtWhen(p.ts) + '</span>' +
+        '<span class="hv">' + fmt(p.assets) + ' ' + S.base + '</span>' +
+        '<span class="hc">' + ch + '</span>' +
+        '<button class="hdel' + (armedHist === p.id ? ' armed' : '') + '" type="button" data-hdel="' + p.id + '">' + (armedHist === p.id ? '確定刪除' : '刪除') + '</button>' +
+      '</div>');
+    }
+    $('hist-list').innerHTML = rows.join('');
+  }
+  $('hist-list').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-hdel]');
+    if (!b) return;
+    var id = b.getAttribute('data-hdel');
+    if (armedHist === id) {
+      clearTimeout(histTimer);
+      armedHist = null;
+      S.history = S.history.filter(function (h) { return h.id !== id; });
+      activeIdx = null;
+      save();
+      afterHistoryChange();
+    } else {
+      armedHist = id;
+      clearTimeout(histTimer);
+      histTimer = setTimeout(function () { armedHist = null; renderHistory(); }, 3000);
+      renderHistory();
+    }
+  });
+  function afterHistoryChange() {
+    recalc();
+    renderRegInfo();
+    drawChart();
+    renderHistory();
+  }
+
+  /* 登記 */
+  var statusTimer = null;
+  function status(msg) {
+    var el = $('reg-status');
+    el.textContent = msg;
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(function () { el.textContent = ''; }, 5000);
+  }
+  $('register').addEventListener('click', function () {
+    if (S.sample) { status('目前是範例資料。請先按上方的「清空範例」，再輸入你自己的金額登記，這樣範例就不會混進你的紀錄。'); return; }
+    if (!S.items.length) { status('還沒有任何項目。先新增金額，再登記。'); return; }
+    var snap = {
+      id: uid(),
+      ts: new Date().toISOString(),
+      base: S.base,
+      rates: Object.assign({}, S.rates),
+      items: S.items.map(function (it) { return { id: it.id, group: it.group, name: it.name, amount: it.amount || 0, cur: it.cur }; })
+    };
+    S.history.push(snap);
+    activeIdx = null;
+    save();
+    afterHistoryChange();
+    status('已登記 ' + fmtWhen(snap.ts) + '。往下可以看到走勢圖。');
+  });
+
+  /* 清單事件 */
+  function findItem(el) {
+    var row = el.closest('.row');
+    if (!row) return null;
+    var id = row.getAttribute('data-id');
+    return S.items.filter(function (it) { return it.id === id; })[0] || null;
+  }
+  var app = $('app');
+  app.addEventListener('input', function (e) {
+    var it = findItem(e.target), f = e.target.getAttribute('data-f');
+    if (!it) return;
+    if (f === 'name') { it.name = e.target.value; }
+    else if (f === 'amt') { it.amount = parseNum(e.target.value); }
+    save();
+    recalc();
+    renderRegInfo();
+  });
+  app.addEventListener('change', function (e) {
+    var it = findItem(e.target);
+    if (it && e.target.getAttribute('data-f') === 'cur') {
+      it.cur = e.target.value;
+      save();
+      recalc();
+    }
+  });
+  app.addEventListener('focusout', function (e) {
+    if (e.target.getAttribute && e.target.getAttribute('data-f') === 'amt') {
+      var it = findItem(e.target);
+      if (it) e.target.value = it.amount ? it.amount.toLocaleString('en-US', { maximumFractionDigits: 8 }) : '';
+    }
+  });
+  app.addEventListener('click', function (e) {
+    var addBtn = e.target.closest('[data-add]');
+    var delBtn = e.target.closest('[data-del]');
+    if (addBtn) {
+      var key = addBtn.getAttribute('data-add');
+      var it = { id: uid(), group: key, name: '', amount: 0, cur: S.base };
+      S.items.push(it);
+      save();
+      render();
+      var n = $('n-' + it.id);
+      if (n) n.focus();
+    } else if (delBtn) {
+      var id = delBtn.getAttribute('data-del');
+      var gone = S.items.filter(function (x) { return x.id === id; })[0];
+      S.items = S.items.filter(function (x) { return x.id !== id; });
+      save();
+      render();
+      if (gone) {
+        var back = document.querySelector('[data-add="' + gone.group + '"]');
+        if (back) back.focus();
+      }
+    }
+  });
+
+  /* 計價幣別 */
+  var baseSel = $('base');
+  baseSel.innerHTML = CURS.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+  baseSel.addEventListener('change', function () {
+    S.base = baseSel.value;
+    save();
+    recalc();
+    drawChart();
+    renderHistory();
+  });
+
+  /* 匯率 */
+  $('rates').innerHTML = CURS.filter(function (c) { return c !== 'USD'; }).map(function (c) {
+    return '<label class="rate"><span>1 USD =</span>' +
+      '<input id="r-' + c + '" inputmode="decimal" aria-label="1 美元兌 ' + c + '">' +
+      '<span>' + c + '</span></label>';
+  }).join('');
+  $('rates').addEventListener('input', function (e) {
+    var c = e.target.id.replace('r-', '');
+    var v = parseNum(e.target.value);
+    if (v > 0 && CURS.indexOf(c) >= 0) {
+      S.rates[c] = v;
+      save();
+      recalc();
+    }
+  });
+
+  /* 清空 */
+  function wipe() {
+    S.items = [];
+    S.history = [];
+    S.sample = false;
+    activeIdx = null;
+    save();
+    render();
+    drawChart();
+    renderHistory();
+  }
+  $('clear-sample').addEventListener('click', wipe);
+  var armed = false, timer = null, clearBtn = $('clear-all');
+  function resetBtn() {
+    armed = false;
+    clearBtn.textContent = '清空全部（含紀錄）';
+    clearBtn.classList.remove('armed');
+  }
+  clearBtn.addEventListener('click', function () {
+    if (!armed) {
+      armed = true;
+      clearBtn.textContent = '再按一次確認清空';
+      clearBtn.classList.add('armed');
+      timer = setTimeout(resetBtn, 3000);
+    } else {
+      clearTimeout(timer);
+      wipe();
+      resetBtn();
+    }
+  });
+
+  function syncControls() {
+    baseSel.value = S.base;
+    CURS.forEach(function (c) { var el = $('r-' + c); if (el) el.value = S.rates[c]; });
+  }
+
+  /* 備份：匯出成 JSON 檔，匯入時取代目前資料 */
+  var bTimer = null;
+  function bstatus(msg) {
+    var el = $('backup-status');
+    el.textContent = msg;
+    clearTimeout(bTimer);
+    bTimer = setTimeout(function () { el.textContent = ''; }, 6000);
+  }
+  function download(file) {
+    var url = URL.createObjectURL(file);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+  $('export').addEventListener('click', function () {
+    var d = new Date();
+    var stamp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    var json = JSON.stringify({ app: 'asset-calculator', version: 1, exportedAt: d.toISOString(), state: S }, null, 2);
+    var file;
+    try { file = new File([json], 'asset-backup-' + stamp + '.json', { type: 'application/json' }); }
+    catch (e) { bstatus('這個瀏覽器無法建立備份檔。'); return; }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({ files: [file] }).then(function () {
+        bstatus('已匯出。在分享選單選「儲存到檔案」就能留住備份。');
+      }).catch(function (err) {
+        if (err && err.name === 'AbortError') return;
+        download(file);
+        bstatus('已匯出備份檔。');
+      });
+    } else {
+      download(file);
+      bstatus('已匯出備份檔。');
+    }
+  });
+  $('import').addEventListener('click', function () { $('import-file').click(); });
+  $('import-file').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onerror = function () { bstatus('讀不到這個檔案，請重新選擇。'); };
+    reader.onload = function () {
+      var ns = null;
+      try {
+        var obj = JSON.parse(String(reader.result));
+        ns = normalize(obj && obj.state ? obj.state : obj);
+      } catch (err) { ns = null; }
+      if (!ns) { bstatus('這不是本工具匯出的備份檔，沒有做任何更動。'); return; }
+      try { localStorage.setItem(KEY + '-before-import', JSON.stringify(S)); } catch (err) {}
+      S = ns;
+      activeIdx = null;
+      save();
+      syncControls();
+      render();
+      drawChart();
+      renderHistory();
+      bstatus('已匯入備份，共 ' + S.items.length + ' 個項目、' + S.history.length + ' 筆登記紀錄。');
+    };
+    reader.readAsText(f);
+  });
+
+  /* 開啟頁面 */
+  function boot() {
+    if (!S) S = sampleState();
+    syncControls();
+    $('boot').hidden = true;
+    $('main').hidden = false;
+    render();
+    drawChart();
+    renderHistory();
+    try {
+      localStorage.setItem(KEY + '-probe', '1');
+      localStorage.removeItem(KEY + '-probe');
+      setSync(true);
+    } catch (e) { setSync(false); }
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
+  }
+  boot();
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    });
+  }
+})();
+</script>
+</body>
+</html>
